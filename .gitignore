@@ -66,3 +66,17 @@ templates/**/.claude/commands/speckit*.md
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Go
+bin/
+*.test
+coverage.out
+
+# Web. web/dist is the embed target of web/embed.go and keeps a tracked .gitkeep, so the Go
+# build compiles before the web app has been built.
+!web/dist/
+web/dist/*
+!web/dist/.gitkeep
+web/coverage/
+web/playwright-report/
+web/test-results/
