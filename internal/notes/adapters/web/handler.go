@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/JorisJonkers-dev/template-go-vue/internal/notes/domain"
+	"github.com/JorisJonkers-dev/template-go-vue/internal/platform/httpx"
 	"github.com/JorisJonkers-dev/template-go-vue/internal/platform/oas"
 )
 
@@ -33,12 +34,7 @@ func (h *Handler) CreateNote(ctx context.Context, req *oas.NewNote) (oas.CreateN
 	if errors.Is(err, domain.ErrInvalidText) {
 		return &oas.CreateNoteUnprocessableEntity{
 			StatusCode: http.StatusUnprocessableEntity,
-			Response: oas.Problem{
-				Type:   "about:blank",
-				Title:  "Invalid note",
-				Status: http.StatusUnprocessableEntity,
-				Detail: oas.NewOptString(domain.ErrInvalidText.Error()),
-			},
+			Response:   httpx.Problem(http.StatusUnprocessableEntity, domain.ErrInvalidText.Error()),
 		}, nil
 	}
 	if err != nil {

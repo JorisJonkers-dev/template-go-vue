@@ -46,8 +46,9 @@ tasks:
       - task: lint:actions
 
   lint:go:
-    desc: golangci-lint and the gofumpt/goimports format check
+    desc: go.sum against the module cache, golangci-lint, and the gofumpt/goimports format check
     cmds:
+      - go mod verify
       - golangci-lint run ./...
       - golangci-lint fmt --diff ./...
 

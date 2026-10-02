@@ -5,16 +5,14 @@ import {
   listNotesOptions,
   listNotesQueryKey,
 } from '../../../infrastructure/api/@tanstack/vue-query.gen'
-import type { Note, Problem } from '../../../infrastructure/api/types.gen'
-
-function isProblem(error: unknown): error is Problem {
-  return typeof error === 'object' && error !== null && 'title' in error && 'status' in error
-}
+import type { Note } from '../../../infrastructure/api/types.gen'
+import { zProblem } from '../../../infrastructure/api/zod.gen'
 
 /** What to tell the user about a failed request: the problem's detail when the server sent one. */
 export function describeError(error: unknown): string {
-  if (isProblem(error)) return error.detail ?? error.title
-  return 'Something went wrong. Try again.'
+  const problem = zProblem.safeParse(error)
+  if (!problem.success) return 'Something went wrong. Try again.'
+  return problem.data.detail ?? problem.data.title
 }
 
 /** Server state for the notes feature. Components read notes through this and never call the API. */

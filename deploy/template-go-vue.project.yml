@@ -17,7 +17,7 @@ applications:
     # role and startupBudget covers the migration.
     migration: self
 
-    # Omit this block to run without monitoring; the template serves no /metrics yet.
+    # No observability block: the template serves no /metrics yet.
     exposure:
       - name: public
         host: template-go-vue.jorisjonkers.dev # the full FQDN, authored; replace on rename

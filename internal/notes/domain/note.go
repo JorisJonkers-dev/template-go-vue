@@ -4,7 +4,6 @@ package domain
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,7 +16,7 @@ import (
 const MaxTextLength = 500
 
 // ErrInvalidText is returned for text that is empty after trimming, or longer than MaxTextLength.
-var ErrInvalidText = errors.New("a note needs between 1 and 500 characters of text")
+var ErrInvalidText = fmt.Errorf("a note needs between 1 and %d characters of text", MaxTextLength)
 
 // Text is a note's validated text. The zero value is never handed out by NewText.
 type Text struct {

@@ -24,6 +24,10 @@ deliberately left for the application to add when it has code worth guarding wit
 |---|---|---|
 | go-api.md §6.2, §15 | NilAway (custom-gcl), `exhaustruct` | a module plugin build and a linter that pays off only once the domain has invariants to guard |
 | go-api.md §16 | gremlins mutation testing | a mutation gate needs a core with real logic to mutate |
+| go-api.md §6.3, §16, §19.2 | `govulncheck`, `sqlc vet` | `golangci-lint`'s `gosec` and `sqlc generate` gate the sample today; `sqlc vet` needs rules or a live database to check anything, and `govulncheck` joins with the first dependency worth scanning |
+| go-api.md §19.4 | request logging middleware, request ids | the binary logs its lifecycle and every 500's cause; add the middleware with the first service that needs to trace a request |
+| go-api.md §19.2, vue-ts-spa.md §19.2 | actions pinned to SHAs, `pnpm audit` | the estate's workflows pin actions by tag and let Renovate and Dependabot move them; an audit gate fails on advisories no change in the repository caused |
+| vue-ts-spa.md §14, §17 | bundle budgets | the sample's bundle has no size worth budgeting yet |
 | go-api.md §19.1 | CORS, rate limiting | the SPA and API share one origin, and the sample API does not rate-limit; `openapi/.spectral.yaml` says which OWASP rules to turn back on |
 | go-api.md §20, §21 | River jobs, the WebSocket hub | optional; add when needed |
 | vue-ts-spa.md §2, §15 | `eslint-plugin-boundaries` | one feature slice has no boundary to cross yet |

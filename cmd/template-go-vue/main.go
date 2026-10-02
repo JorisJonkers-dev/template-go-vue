@@ -45,7 +45,8 @@ func start(parent context.Context, getenv func(string) string) int {
 	return 0
 }
 
-// run is the composition root: every adapter is built here and nowhere else.
+// run is the composition root: it reads the environment and builds the store, the use cases and
+// the server. httpapi assembles the contexts' web adapters into the one generated API.
 func run(ctx context.Context, logger *slog.Logger, getenv func(string) string) error {
 	dbURL := getenv("DATABASE_URL")
 	if dbURL == "" {

@@ -29,15 +29,7 @@ func (a *api) NewError(ctx context.Context, err error) *oas.ProblemStatusCode {
 	if code >= http.StatusInternalServerError {
 		a.logger.ErrorContext(ctx, "request failed", "error", err)
 	}
-	return &oas.ProblemStatusCode{
-		StatusCode: code,
-		Response: oas.Problem{
-			Type:   "about:blank",
-			Title:  http.StatusText(code),
-			Status: int32(code), //nolint:gosec // an HTTP status code fits in an int32
-			Detail: oas.OptString{},
-		},
-	}
+	return &oas.ProblemStatusCode{StatusCode: code, Response: httpx.Problem(code, "")}
 }
 
 // identity accepts every request the edge put an identity on; ogen refuses one without before
@@ -54,15 +46,14 @@ func New(logger *slog.Logger, notes notesweb.UseCases) (http.Handler, error) {
 		&api{Handler: notesweb.New(notes), logger: logger},
 		identity{},
 		oas.WithErrorHandler(func(_ context.Context, w http.ResponseWriter, _ *http.Request, err error) {
-			code := ogenerrors.ErrorCode(err)
-			httpx.WriteProblem(w, code, http.StatusText(code), "")
+			httpx.WriteProblem(w, ogenerrors.ErrorCode(err), "")
 		}),
 		oas.WithNotFound(func(w http.ResponseWriter, _ *http.Request) {
-			httpx.WriteProblem(w, http.StatusNotFound, "Not found", "")
+			httpx.WriteProblem(w, http.StatusNotFound, "")
 		}),
 		oas.WithMethodNotAllowed(func(w http.ResponseWriter, _ *http.Request, allowed string) {
 			w.Header().Set("Allow", allowed)
-			httpx.WriteProblem(w, http.StatusMethodNotAllowed, "Method not allowed", "")
+			httpx.WriteProblem(w, http.StatusMethodNotAllowed, "")
 		}),
 	)
 }
