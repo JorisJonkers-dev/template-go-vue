@@ -35,7 +35,7 @@ starts from [`template-go`](https://github.com/JorisJonkers-dev/template-go) ins
 | `web/tests/e2e/` | Playwright with axe, on a desktop and a phone, against the built binary |
 | `mise.toml`, `Taskfile.yml` | The pinned toolchain, and every command: `task` lists them |
 | `Dockerfile` | Builds the web app, embeds it, ships a static binary on `distroless/static:nonroot` |
-| `.github/workflows/ci.yml` | One job, `Pipeline Complete`: `task check`, `task e2e`, `docker build` |
+| `.github/workflows/ci.yml` | One parallel job per `task check` task, one for `task e2e` and one for `docker build`; `Pipeline Complete`, the one required check, passes when all do |
 | `.github/workflows/release.yml`, `release-please-config.json` | release-please, as in the rest of the estate |
 | `deploy/template-go-vue.project.yml` | A [deploy-kit](https://github.com/JorisJonkers-dev/deploy-kit) Project Intent: one Process, an authenticated host, a Postgres edge |
 
