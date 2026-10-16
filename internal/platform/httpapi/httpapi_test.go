@@ -89,7 +89,7 @@ func call(t *testing.T, srv *httptest.Server, method, path, body string, identif
 	return out
 }
 
-func TestCreateThenList(t *testing.T) {
+func TestACreatedNoteIsListed(t *testing.T) {
 	srv := serve(t, &memory{})
 	created := call(t, srv, http.MethodPost, "/api/v1/notes", `{"text":"  Buy milk "}`, true)
 	if created.code != http.StatusCreated || created.body["text"] != "Buy milk" || created.body["id"] == "" {
@@ -102,8 +102,7 @@ func TestCreateThenList(t *testing.T) {
 	}
 }
 
-func TestProblems(t *testing.T) {
-	srv := serve(t, &memory{})
+func TestARequestTheContractOrTheDomainRefusesGetsAProblem(t *testing.T) {
 	cases := []struct {
 		name, method, path, body string
 		identified               bool
@@ -119,7 +118,7 @@ func TestProblems(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := call(t, srv, tc.method, tc.path, tc.body, tc.identified)
+			got := call(t, serve(t, &memory{}), tc.method, tc.path, tc.body, tc.identified)
 			if got.code != tc.want || got.body["status"] != float64(tc.want) {
 				t.Fatalf("%s %s = %d %v, want a %d problem", tc.method, tc.path, got.code, got.body, tc.want)
 			}
@@ -130,12 +129,14 @@ func TestProblems(t *testing.T) {
 	}
 }
 
-func TestFailureIsAnOpaque500(t *testing.T) {
-	srv := serve(t, &memory{err: errors.New("connection refused to 10.0.0.7")})
+func TestAFailingStoreGetsA500ThatSaysNothingOfTheCause(t *testing.T) {
 	for _, req := range []struct{ method, body string }{{http.MethodGet, ""}, {http.MethodPost, `{"text":"x"}`}} {
-		got := call(t, srv, req.method, "/api/v1/notes", req.body, true)
-		if got.code != http.StatusInternalServerError || got.body["detail"] != nil {
-			t.Fatalf("%s = %d %v, want a 500 without detail", req.method, got.code, got.body)
-		}
+		t.Run(req.method, func(t *testing.T) {
+			srv := serve(t, &memory{err: errors.New("connection refused to 10.0.0.7")})
+			got := call(t, srv, req.method, "/api/v1/notes", req.body, true)
+			if got.code != http.StatusInternalServerError || got.body["detail"] != nil {
+				t.Fatalf("%s = %d %v, want a 500 without detail", req.method, got.code, got.body)
+			}
+		})
 	}
 }

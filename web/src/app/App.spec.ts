@@ -1,35 +1,8 @@
-import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
-import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMemoryHistory } from 'vue-router'
-import { configureApi } from '../infrastructure/http'
-import App from './App.vue'
-import { createAppRouter } from './router'
-
-type Handler = (request: Request) => Response | Promise<Response>
-
-function json(body: unknown, status = 200, contentType = 'application/json'): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': contentType } })
-}
+import { flushPromises } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { json, mountApp } from './testing'
 
 const note = (text: string, id = crypto.randomUUID()) => ({ id, text, createdAt: '2026-10-02T09:30:00Z' })
-
-/** Mounts the whole app at path, with the network answered by handle. */
-async function mountApp(handle: Handler, path = '/') {
-  const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-    Promise.resolve(handle(input instanceof Request ? input : new Request(input, init))),
-  )
-  configureApi({ baseUrl: 'http://app.test', fetch })
-  const router = createAppRouter(createMemoryHistory())
-  await router.push(path)
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const wrapper = mount(App, { global: { plugins: [router, [VueQueryPlugin, { queryClient }]] } })
-  await router.isReady()
-  await flushPromises()
-  await vi.dynamicImportSettled()
-  await flushPromises()
-  return { wrapper, fetch, router }
-}
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -59,7 +32,9 @@ describe('the notes page', () => {
   })
 
   it('refuses a response the contract does not allow', async () => {
-    const { wrapper } = await mountApp(() => json({ items: [{ id: 'not-a-uuid', text: '', createdAt: 'yesterday' }] }))
+    const { wrapper } = await mountApp(() => json({ items: [{ id: 'not-a-uuid', text: '', createdAt: 'yesterday' }] }), '/', {
+      offContract: true,
+    })
     expect(wrapper.get('[role="alert"]').text()).toBe('Something went wrong. Try again.')
   })
 
@@ -110,5 +85,11 @@ describe('the notes page', () => {
   it('sends unknown paths home', async () => {
     const { router } = await mountApp(() => json({ items: [] }), '/no/such/page')
     expect(router.currentRoute.value.path).toBe('/')
+  })
+})
+
+describe('a page test with a stub that lies', () => {
+  it.fails('fails, even when the page shows nothing wrong', async () => {
+    await mountApp(() => json({ items: [], next: 'x' }))
   })
 })

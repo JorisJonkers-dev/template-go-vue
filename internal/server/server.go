@@ -4,7 +4,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -17,7 +16,6 @@ import (
 
 const (
 	readHeaderTimeout = 5 * time.Second
-	shutdownGrace     = 10 * time.Second
 	readyTimeout      = 2 * time.Second
 )
 
@@ -35,13 +33,15 @@ type Routes struct {
 type Server struct {
 	logger  *slog.Logger
 	version string
+	grace   time.Duration
 	routes  Routes
 	serving atomic.Bool
 }
 
-// New returns a Server that logs to logger and reports version at startup.
-func New(logger *slog.Logger, version string, routes Routes) *Server {
-	return &Server{logger: logger, version: version, routes: routes}
+// New returns a Server that logs to logger, reports version at startup, and drains for up to grace
+// once it is told to stop.
+func New(logger *slog.Logger, version string, grace time.Duration, routes Routes) *Server {
+	return &Server{logger: logger, version: version, grace: grace, routes: routes}
 }
 
 // Handler returns the routes, behind the browser hardening headers. Liveness never depends on
@@ -71,7 +71,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 // Serve accepts on ln until ctx is cancelled, then fails readiness and drains in-flight
-// requests for up to the shutdown grace period.
+// requests for up to its grace.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	srv := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: readHeaderTimeout}
 
@@ -86,14 +86,12 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	case <-ctx.Done():
 	}
 	s.serving.Store(false)
-	drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
+	drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.grace)
 	defer cancel()
 	if err := srv.Shutdown(drain); err != nil {
 		return err
 	}
-	if err := <-errs; !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
+	<-errs // http.ErrServerClosed, once Shutdown has returned
 	s.logger.Info("stopped")
 	return nil
 }

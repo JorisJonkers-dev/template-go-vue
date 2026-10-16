@@ -9,7 +9,7 @@ import (
 	"github.com/JorisJonkers-dev/template-go-vue/internal/platform/httpx"
 )
 
-func TestWriteProblem(t *testing.T) {
+func TestAProblemCarriesItsTypeTitleStatusAndDetail(t *testing.T) {
 	rec := httptest.NewRecorder()
 	httpx.WriteProblem(rec, http.StatusTeapot, "Longer")
 	if rec.Code != http.StatusTeapot || rec.Header().Get("Content-Type") != "application/problem+json" {
@@ -24,13 +24,13 @@ func TestWriteProblem(t *testing.T) {
 	}
 }
 
-func TestProblemOmitsAnEmptyDetail(t *testing.T) {
+func TestAProblemWithoutDetailLeavesItOut(t *testing.T) {
 	if p := httpx.Problem(http.StatusNotFound, ""); p.Detail.Set || p.Title != "Not Found" || p.Status != 404 {
 		t.Fatalf("problem = %+v", p)
 	}
 }
 
-func TestSecurityHeaders(t *testing.T) {
+func TestEveryAnswerCarriesTheBrowserHardeningHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	httpx.SecurityHeaders(http.NotFoundHandler()).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 	for _, h := range []string{"Content-Security-Policy", "X-Content-Type-Options", "Referrer-Policy", "X-Frame-Options", "Strict-Transport-Security"} {
@@ -40,19 +40,29 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
-func TestDevIdentityFillsOnlyAMissingIdentity(t *testing.T) {
+// identityAfterDev is the identity a request with given reaches the next handler with.
+func identityAfterDev(t *testing.T, given string) string {
+	t.Helper()
 	var seen string
 	h := httpx.DevIdentity("dev", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		seen = r.Header.Get(httpx.IdentityHeader)
 	}))
-	for given, want := range map[string]string{"": "dev", "someone": "someone"} {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
-		if given != "" {
-			req.Header.Set(httpx.IdentityHeader, given)
-		}
-		h.ServeHTTP(httptest.NewRecorder(), req)
-		if seen != want {
-			t.Fatalf("identity %q became %q, want %q", given, seen, want)
-		}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+	if given != "" {
+		req.Header.Set(httpx.IdentityHeader, given)
+	}
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	return seen
+}
+
+func TestTheDevIdentityStandsInForAMissingIdentity(t *testing.T) {
+	if got := identityAfterDev(t, ""); got != "dev" {
+		t.Fatalf("identity = %q, want dev", got)
+	}
+}
+
+func TestTheDevIdentityLeavesAGivenIdentityAlone(t *testing.T) {
+	if got := identityAfterDev(t, "someone"); got != "someone" {
+		t.Fatalf("identity = %q, want someone", got)
 	}
 }

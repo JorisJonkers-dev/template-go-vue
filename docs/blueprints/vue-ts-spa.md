@@ -269,11 +269,13 @@ Prettier (or ESLint stylistic) for format. Zero issues is a gate; a disable need
 
 ## 16. Testing, typing & coverage gates
 
-Blocking: **`vue-tsc --noEmit`** (types + templates), **Vitest** unit suite with coverage (**domain/
-composables 100%**, generated client excluded), **Playwright** e2e with **axe** a11y assertions
-(a11y is a gate, not a nicety), ESLint, and the OpenAPI drift gate (§9). Layers: domain/composable
-unit tests (jsdom, MSW for the network, the bulk) → component tests (Vue Test Utils) → e2e (Playwright
-+ axe). MSW is generated from the same spec, so tests exercise the real contract shape.
+How tests are written, named and gated is the estate [testing standard](https://github.com/JorisJonkers-dev/workspace/blob/main/docs/testing-standards.md).
+Blocking: **`vue-tsc --noEmit`** (types + templates), **Vitest** unit suite with **100%** coverage
+(generated client and `main.ts` excluded), **Playwright** e2e with **axe** a11y assertions (a11y is a
+gate, not a nicety) whose journeys name their stages with `test.step`, ESLint, and the OpenAPI drift
+gate (§9). Layers: domain/composable unit tests (jsdom, the bulk) → page tests that mount the app
+with stubbed answers → e2e (Playwright + axe). Every stubbed answer is checked against the contract
+(`web/src/app/contract.ts`), so a page test cannot pass on an answer the server would never send.
 
 ---
 

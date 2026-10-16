@@ -104,7 +104,7 @@ github.com/coder/websocket       # optional realtime
 github.com/riverqueue/river      # Postgres-backed jobs (or goroutines)
 log/slog                         # stdlib structured logging — zero deps
 # dev: golangci-lint v2 (2.12.x), gofumpt, go.uber.org/nilaway, govulncheck,
-#      gremlins (mutation), go-test-coverage, testcontainers-go
+#      gremlins (mutation), gobco (branch and condition coverage), testcontainers-go
 ```
 
 Keep the dependency count low — every import is supply-chain surface, and the stdlib covers logging,
@@ -291,12 +291,13 @@ shrinks.
 
 ## 16. Testing, typing & coverage gates
 
-Blocking: `go build`, `go test -race`, coverage threshold (100% on `internal/*/domain`), **gremlins**
-clean on the core, `golangci-lint`, `gosec`, `govulncheck`, `sqlc vet`, `squawk`, and the
-OpenAPI conformance + drift gates. Go measures **statement** coverage; the pure functional core makes
-100% trivial, and gremlins provides the assertion-strength guarantee branch coverage alone never did.
-Layers: domain/app unit tests (no DB/HTTP, the bulk) → adapter tests (Testcontainers Postgres;
-`httptest` for external HTTP, no network) → handler/contract tests (ogen server in-process).
+How tests are written, named and gated is the estate [testing standard](https://github.com/JorisJonkers-dev/workspace/blob/main/docs/testing-standards.md). In
+short: one behaviour per test, named as a sentence; unit tests reach 100% of statements, branches,
+conditions (gobco) and functions; tests that need Postgres sit behind the `integration` build tag and
+reach every function; a context's behaviours are checked through real HTTP and real Postgres; the
+mutation report (gremlins) comments the survivors on a pull request's changed lines.
+Also blocking: `go build`, `golangci-lint` with `testlint`, `gosec`, `govulncheck`, `sqlc vet`,
+`squawk`, and the OpenAPI conformance + drift gates.
 
 ---
 

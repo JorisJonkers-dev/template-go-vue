@@ -28,14 +28,17 @@ starts from [`template-go`](https://github.com/JorisJonkers-dev/template-go) ins
 | `db/migrations/` | goose migrations, embedded and applied by the binary at startup; linted by squawk |
 | `db/queries/`, `internal/platform/pg/queries/` | SQL, and the Go sqlc generates from it |
 | `internal/notes/` | The sample bounded context: `domain` (pure), `app` (use cases), `adapters/persistence` and `adapters/web` |
-| `internal/platform/` | Postgres (`pg`, with `pgtest` for a migrated database per test), `httpapi` (assembles the ogen server), `httpx`, `webui` |
+| `internal/platform/` | Postgres (`pg`, with `pgtest` for a migrated database per test), `httpapi` (assembles the ogen server), `httpx`, `webui`, and `itest`, which runs the whole service over real HTTP for the integration tests |
+| `internal/assembly/` | Wires each context's use cases and adapters on the store; `main` and `itest` both build the service here |
 | `internal/server/` | Probes, `/api/` to the API, everything else to the SPA, graceful drain |
-| `cmd/template-go-vue/` | The composition root; reads `DATABASE_URL`, `ADDR` (default `:8080`) and `DEV_USER` |
+| `cmd/template-go-vue/` | The binary; reads `DATABASE_URL`, `ADDR` (default `:8080`) and `DEV_USER`, migrates, and serves what `assembly` builds |
 | `web/` | The Vue 3 SPA, and `embed.go`, which embeds its build (`web/dist`) in the binary |
-| `web/tests/e2e/` | Playwright with axe, on a desktop and a phone, against the built binary |
+| `web/src/app/contract.ts` | Checks every answer a web test stubs against the contract, so a page test cannot pass on an answer the server would never send |
+| `web/tests/e2e/` | Playwright with axe, on a desktop and a phone, against the built binary; each journey names its stages with `test.step` |
+| `scripts/coverage.sh` | The Go unit and integration coverage gates |
 | `mise.toml`, `Taskfile.yml` | The pinned toolchain, and every command: `task` lists them |
 | `Dockerfile` | Builds the web app, embeds it, ships a static binary on `distroless/static:nonroot` |
-| `.github/workflows/ci.yml` | One parallel job per `task check` task, one for `task e2e` and one for `docker build`; `Pipeline Complete`, the one required check, passes when all do |
+| `.github/workflows/ci.yml` | One parallel job per `task check` task, one for `task e2e`, one for `docker build`, the quarantine check, and the mutation report on pull requests; `Pipeline Complete`, the one required check, passes when all but the report do |
 | `.github/workflows/release.yml`, `release-please-config.json` | release-please, as in the rest of the estate |
 | `deploy/template-go-vue.project.yml` | A [deploy-kit](https://github.com/JorisJonkers-dev/deploy-kit) Project Intent: one Process, an authenticated host, a Postgres edge |
 
@@ -45,21 +48,31 @@ The sample resource is a list of notes, there only to show every layer once. Rep
 
 ```bash
 mise install    # the pinned toolchain: Go, Node, pnpm, task, linters
-task check      # lint, gen:check, Go and web tests with coverage, build, secret scan
+task check      # lint, gen:check, Go unit, Go integration and web tests with coverage, build, secret scan
 task e2e        # builds, starts the compose Postgres, runs Playwright with axe
 task dev        # Postgres, the API on :8080, Vite with hot reload on :5173
 ```
 
-`task check` needs Docker: the Go tests start Postgres through testcontainers. `go test -short`
-skips the tests that need it.
+Tests follow the estate
+[testing standard](https://github.com/JorisJonkers-dev/workspace/blob/main/docs/testing-standards.md):
+each test checks one behaviour and is named as it. Go unit tests need nothing outside the process,
+and plain `go test ./...` runs only them. Tests that need Postgres sit behind the `integration`
+build tag, in `*_integration_test.go`. A context's behaviours are checked there through real HTTP
+and real Postgres with `itest`, as `internal/notes/behaviour_integration_test.go` does.
+`task test:integration` runs them, and needs Docker for testcontainers.
+
+`task lint` runs `testlint` to hold test names and tables to the standard, and an ESLint rule that
+makes a long Playwright journey name its stages. Tests never retry: a flaky test is fixed, or
+skipped with `quarantine: <issue-url> until YYYY-MM-DD` for at most 14 days, which CI checks.
 
 **Changing the API** is always the same motion: edit `openapi/v1/openapi.yaml`, run `task gen` (which
 lints the contract first), then fix what no longer compiles on either side. `task gen:check` fails
 when committed generated code is stale, and CI runs it.
 
-**Coverage gates.** Go: 80% total and 100% on each context's `domain` and `app`
-(`.testcoverage.yml`), measured across packages and excluding generated code. Web: 90% on lines,
-branches, functions and statements (`web/vite.config.ts`). Raise them as the suite grows.
+**Coverage gates.** Go unit tests reach every statement, branch and condition (gobco) and every
+function, excluding generated code, test tooling, and what needs Postgres. The integration run
+reaches every function (`scripts/coverage.sh`). Web tests reach every line, branch, function and
+statement, excluding generated code and `main.ts` (`web/vite.config.ts`).
 
 **Identity.** The API requires an `X-User-Id` header, which the platform's forward-auth sets at the
 edge (`audience: authenticated` in the project file). On a local run nothing sits in front of the
@@ -69,12 +82,11 @@ binary, so `DEV_USER` fills the header in. Never set `DEV_USER` in a deployment.
 
 1. **Create the repository** with "Use this template" on GitHub.
 2. **Rename the module.** Replace `github.com/JorisJonkers-dev/template-go-vue` with the new module
-   path in `go.mod`, `.golangci.yml` (the goimports prefix and the depguard rule),
-   `.testcoverage.yml` and every import.
+   path in `go.mod`, `.golangci.yml` (the goimports prefix and the depguard rule) and every import.
 3. **Rename the application.** Rename `cmd/template-go-vue/` to `cmd/<name>`, then replace
    `template-go-vue` in `Taskfile.yml` (`APP`), `Dockerfile`, `package.json`, `openapi/package.json`,
    `web/package.json`, `web/index.html`, `web/playwright.config.ts`, `openapi/v1/openapi.yaml`,
-   `.github/workflows/ci.yml` and `release.yml`.
+   `.github/workflows/ci.yml`, `scripts/coverage.sh` and `release.yml`.
 4. **Rename the project file.** Move `deploy/template-go-vue.project.yml` to
    `deploy/<name>.project.yml` and change `project`, `owner`, the Application `id`, the Process
    `name` and `image`, and the host.

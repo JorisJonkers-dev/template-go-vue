@@ -19,8 +19,11 @@ describe('useNotes', () => {
 })
 
 describe('describeError', () => {
-  it("prefers a problem's detail, then its title", () => {
+  it("says a problem's detail", () => {
     expect(describeError({ type: 'about:blank', title: 'Bad Request', status: 400, detail: 'Fix it.' })).toBe('Fix it.')
+  })
+
+  it("says a problem's title when it has no detail", () => {
     expect(describeError({ type: 'about:blank', title: 'Bad Request', status: 400 })).toBe('Bad Request')
   })
 
