@@ -1,6 +1,7 @@
 import tseslint from 'typescript-eslint'
 import pluginVue from 'eslint-plugin-vue'
 import vueA11y from 'eslint-plugin-vuejs-accessibility'
+import { playwrightStepsConfig } from '@jorisjonkers-dev/vue-web-commons/eslint-testing'
 
 export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'src/infrastructure/api/**', 'playwright-report/**', 'test-results/**'] },
@@ -29,5 +30,7 @@ export default tseslint.config(
       'vue/html-self-closing': 'off',
     },
   },
+  // An e2e journey names each stage with test.step, so a failure says which stage broke.
+  playwrightStepsConfig(),
   { files: ['eslint.config.js'], ...tseslint.configs.disableTypeChecked },
 )

@@ -79,6 +79,9 @@ web/dist/*
 web/coverage/
 web/playwright-report/
 web/test-results/
+# Stryker, which the mutation report runs on a pull request.
+web/.stryker-tmp/
+web/reports/
 
 # Task's checksum state: machine-local. Tracked, it tells a fresh clone that `install` already ran.
 .task/

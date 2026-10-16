@@ -14,18 +14,26 @@ test('a note added in the browser is stored and listed', async ({ page }, info) 
     if (message.type() === 'error') errors.push(message.text())
   })
   const text = `Buy milk ${info.project.name} ${String(Date.now())}`
-  await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible()
-  await expectAccessible(page)
 
-  await page.getByLabel('New note').fill(text)
-  await page.getByRole('button', { name: 'Add note' }).click()
-  await expect(page.getByLabel('New note')).toHaveValue('')
-  await expect(page.getByRole('list', { name: 'Notes' })).toContainText(text)
-  await expectAccessible(page)
+  await test.step('the notes page opens, accessible', async () => {
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'Notes' })).toBeVisible()
+    await expectAccessible(page)
+  })
 
-  await page.reload()
-  await expect(page.getByRole('list', { name: 'Notes' })).toContainText(text)
+  await test.step('a note is added, and the field clears', async () => {
+    await page.getByLabel('New note').fill(text)
+    await page.getByRole('button', { name: 'Add note' }).click()
+    await expect(page.getByLabel('New note')).toHaveValue('')
+    await expect(page.getByRole('list', { name: 'Notes' })).toContainText(text)
+    await expectAccessible(page)
+  })
+
+  await test.step('the note is still there after a reload', async () => {
+    await page.reload()
+    await expect(page.getByRole('list', { name: 'Notes' })).toContainText(text)
+  })
+
   expect(errors).toEqual([])
 })
 
