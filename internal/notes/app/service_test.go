@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func (m *memory) List(_ context.Context, limit int) ([]domain.Note, error) {
 	return m.notes[:min(limit, len(m.notes))], nil
 }
 
-func TestCreateStoresTrimmedText(t *testing.T) {
+func TestACreatedNoteIsStoredTrimmed(t *testing.T) {
 	repo := &memory{}
 	note, err := app.New(repo).Create(t.Context(), "  Buy milk ")
 	if err != nil {
@@ -47,7 +48,7 @@ func TestCreateStoresTrimmedText(t *testing.T) {
 	}
 }
 
-func TestCreateRefusesInvalidTextWithoutStoring(t *testing.T) {
+func TestTextTheDomainRefusesIsNeverStored(t *testing.T) {
 	repo := &memory{}
 	if _, err := app.New(repo).Create(t.Context(), "   "); !errors.Is(err, domain.ErrInvalidText) {
 		t.Fatalf("error = %v, want ErrInvalidText", err)
@@ -57,14 +58,14 @@ func TestCreateRefusesInvalidTextWithoutStoring(t *testing.T) {
 	}
 }
 
-func TestCreateWrapsRepositoryFailure(t *testing.T) {
+func TestCreatingFailsWhenTheRepositoryDoes(t *testing.T) {
 	boom := errors.New("boom")
 	if _, err := app.New(&memory{err: boom}).Create(t.Context(), "x"); !errors.Is(err, boom) {
 		t.Fatalf("error = %v, want it to wrap %v", err, boom)
 	}
 }
 
-func TestListDefaultsAndCapsTheLimit(t *testing.T) {
+func TestAListAsksForTheDefaultLimitAndAtMostTheMaximum(t *testing.T) {
 	cases := []struct{ asked, want int }{
 		{0, app.DefaultLimit},
 		{-3, app.DefaultLimit},
@@ -72,17 +73,19 @@ func TestListDefaultsAndCapsTheLimit(t *testing.T) {
 		{app.MaxLimit + 1, app.MaxLimit},
 	}
 	for _, tc := range cases {
-		repo := &memory{}
-		if _, err := app.New(repo).List(t.Context(), tc.asked); err != nil {
-			t.Fatal(err)
-		}
-		if repo.lastLimit != tc.want {
-			t.Fatalf("List(%d) asked the repository for %d, want %d", tc.asked, repo.lastLimit, tc.want)
-		}
+		t.Run(fmt.Sprint(tc.asked), func(t *testing.T) {
+			repo := &memory{}
+			if _, err := app.New(repo).List(t.Context(), tc.asked); err != nil {
+				t.Fatal(err)
+			}
+			if repo.lastLimit != tc.want {
+				t.Fatalf("List(%d) asked the repository for %d, want %d", tc.asked, repo.lastLimit, tc.want)
+			}
+		})
 	}
 }
 
-func TestListWrapsRepositoryFailure(t *testing.T) {
+func TestListingFailsWhenTheRepositoryDoes(t *testing.T) {
 	boom := errors.New("boom")
 	if _, err := app.New(&memory{err: boom}).List(t.Context(), 1); !errors.Is(err, boom) {
 		t.Fatalf("error = %v, want it to wrap %v", err, boom)

@@ -23,7 +23,7 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       ADDR: new URL(origin).host,
-      DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://app:app@localhost:55432/app?sslmode=disable',
+      DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://app:app@localhost:25432/app?sslmode=disable',
       // No forward-auth in front of a local run; this identity stands in for it.
       DEV_USER: 'e2e',
     },

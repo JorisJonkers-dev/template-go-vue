@@ -5,7 +5,11 @@ go 1.26.4
 // pnpm installs JavaScript packages beside the Go sources; some of them ship .go files.
 ignore node_modules
 
-tool github.com/ogen-go/ogen/cmd/ogen
+tool (
+	github.com/JorisJonkers-dev/go-commons/cmd/testlint
+	github.com/ogen-go/ogen/cmd/ogen
+	github.com/rillig/gobco
+)
 
 require (
 	github.com/go-faster/errors v0.8.0
@@ -24,6 +28,7 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
+	github.com/JorisJonkers-dev/go-commons v0.2.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -65,6 +70,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/rillig/gobco v1.3.4 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect

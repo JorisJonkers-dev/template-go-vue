@@ -8,7 +8,7 @@ import (
 	"github.com/JorisJonkers-dev/template-go-vue/internal/notes/domain"
 )
 
-func TestNewTextTrimsAndKeepsText(t *testing.T) {
+func TestNoteTextIsTrimmed(t *testing.T) {
 	text, err := domain.NewText("  Buy milk \n")
 	if err != nil {
 		t.Fatal(err)
@@ -18,7 +18,7 @@ func TestNewTextTrimsAndKeepsText(t *testing.T) {
 	}
 }
 
-func TestNewTextRefusesWhatTheDatabaseWould(t *testing.T) {
+func TestNoteTextTheDatabaseWouldRefuseIsRefused(t *testing.T) {
 	cases := map[string]string{
 		"empty":         "",
 		"only spaces":   " \t\n ",
@@ -34,7 +34,7 @@ func TestNewTextRefusesWhatTheDatabaseWould(t *testing.T) {
 	}
 }
 
-func TestNewTextCountsRunesNotBytes(t *testing.T) {
+func TestNoteTextIsMeasuredInCharactersNotBytes(t *testing.T) {
 	if _, err := domain.NewText(strings.Repeat("é", domain.MaxTextLength)); err != nil {
 		t.Fatalf("%d two-byte runes refused: %v", domain.MaxTextLength, err)
 	}

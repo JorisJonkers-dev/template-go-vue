@@ -1,0 +1,114 @@
+#!/bin/sh
+# The Go coverage gates (workspace docs/testing-standards.md, section 6). `unit` runs the suite that needs no Docker and holds it to
+# every statement, branch, condition and function; `integration` adds the tests behind the
+# `integration` build tag, which need Docker, and holds the merged run to every function.
+# Go measures only statements, so branches and conditions come from gobco and functions from the
+# profile. Totals land in <out>/coverage-totals.json for the pull request report.
+set -eu
+
+bucket=${1:?usage: coverage.sh unit|integration [out]}
+out=${2:-coverage}
+mkdir -p "$out"
+
+# Generated code is the contract's or sqlc's, and pgtest and itest are test tooling.
+generated='/internal/platform/(oas|pg/queries|pg/pgtest|itest)(/|$)'
+# What needs Postgres to run at all, including the assembly that wires the service together: only
+# the integration bucket reaches it.
+needs_db='/(cmd/template-go-vue|internal/assembly|internal/platform/pg|internal/[a-z]+/adapters/persistence)$'
+
+# Every package with tests, under the build tags given: a package of only integration tests, such as
+# a context's HTTP behaviour tests, exists only under the integration tag.
+packages() {
+  go list ${1:+-tags "$1"} ./... | grep -Ev "$generated"
+}
+
+# The packages with source to measure; one holding only tests has nothing to cover.
+measured() {
+  go list ${1:+-tags "$1"} -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... | grep -Ev "$generated"
+}
+
+joined() {
+  tr '\n' ',' | sed 's/,$//'
+}
+
+functions_gate() {
+  go tool cover -func="$1" | grep -v '^total:' |
+    grep -Ev '/cmd/[^/]+/main\.go:[0-9]+:[[:space:]]+main[[:space:]]' >"$out/functions-$bucket.txt" || true
+  uncovered=$(awk '$NF == "0.0%"' "$out/functions-$bucket.txt")
+  functions=$(grep -c . "$out/functions-$bucket.txt")
+  missed=$(printf '%s' "$uncovered" | grep -c . || true)
+  echo "$((functions - missed)) $functions"
+  if [ -n "$uncovered" ]; then
+    echo "functions no test reaches:" >&2
+    echo "$uncovered" >&2
+    return 1
+  fi
+}
+
+if [ "$bucket" = integration ]; then
+  all=$(packages integration)
+  go test -race -count=1 -tags integration -covermode=atomic \
+    -coverpkg="$(measured integration | joined)" -coverprofile="$out/integration.out" $all
+  counted=$(functions_gate "$out/integration.out")
+  printf '{"integration": {"functions": {"covered": %s, "total": %s}}}\n' "${counted% *}" "${counted#* }" \
+    >"$out/coverage-totals-integration.json"
+  cat "$out/coverage-totals-integration.json"
+  exit 0
+fi
+
+unit=$(packages | grep -Ev "$needs_db")
+go test -race -count=1 -covermode=atomic -coverpkg="$(echo "$unit" | joined)" \
+  -coverprofile="$out/unit.out" $unit
+statements=$(go tool cover -func="$out/unit.out" | awk '/^total:/ { sub("%", "", $3); print $3 }')
+counted=$(functions_gate "$out/unit.out") || exit 1
+functions_run=${counted% *}
+functions=${counted#* }
+
+# gobco copies the whole module before instrumenting it, and the root node_modules is hundreds of
+# megabytes of links, so it runs from a copy without it.
+copy=$(mktemp -d)
+trap 'rm -rf "$copy"' EXIT
+rsync -a --exclude node_modules --exclude .git --exclude bin --exclude "$out" ./ "$copy/"
+module=$(go list -m)
+
+# Branch mode counts each branch taken; condition mode counts each operand of && and || both ways.
+# Each package is instrumented and tested on its own, so they run side by side, one per CPU.
+jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
+gobco_total() {
+  mode=$1
+  shift
+  reports=$(mktemp -d "$copy/.gobco-$mode.XXXXXX")
+  for package in $unit; do echo "${package#"$module"/}"; done |
+    xargs -P "$jobs" -I{} sh -c 'cd "$1" && go tool gobco $2 "./$3" >"$4/$(echo "$3" | tr / _).txt" 2>&1' _ "$copy" "$*" {} "$reports"
+  taken=0
+  total=0
+  for report in "$reports"/*.txt; do
+    cat "$report" >&2
+    counted=$(sed -n "s/^$mode coverage: \([0-9]*\)\/\([0-9]*\)\$/\1 \2/p" "$report")
+    if [ -z "$counted" ]; then
+      echo "gobco reported no $mode coverage for $report" >&2
+      return 1
+    fi
+    taken=$((taken + ${counted% *}))
+    total=$((total + ${counted#* }))
+  done
+  echo "$taken $total"
+}
+
+counted=$(gobco_total Branch -branch) || exit 1
+branches_taken=${counted% *}
+branches=${counted#* }
+counted=$(gobco_total Condition) || exit 1
+conditions_taken=${counted% *}
+conditions=${counted#* }
+
+printf '{"statements": %s, "branches": {"covered": %s, "total": %s}, "conditions": {"covered": %s, "total": %s}, "functions": {"covered": %s, "total": %s}}\n' \
+  "$statements" "$branches_taken" "$branches" "$conditions_taken" "$conditions" "$functions_run" "$functions" \
+  >"$out/coverage-totals.json"
+cat "$out/coverage-totals.json"
+
+if [ "$statements" != "100.0" ] || [ "$branches_taken" != "$branches" ] ||
+  [ "$conditions_taken" != "$conditions" ] || [ "$functions_run" != "$functions" ]; then
+  echo "unit coverage must reach every statement, branch, condition and function" >&2
+  exit 1
+fi

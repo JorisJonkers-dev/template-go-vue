@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -17,119 +18,128 @@ func named(name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Header().Set("X-Route", name) })
 }
 
-func newServer(ready error) *server.Server {
-	return server.New(slog.New(slog.DiscardHandler), "test", server.Routes{
+func newServer(grace time.Duration, ready error) *server.Server {
+	return server.New(slog.New(slog.DiscardHandler), "test", grace, server.Routes{
 		API:   named("api"),
 		Web:   named("web"),
 		Ready: func(context.Context) error { return ready },
 	})
 }
 
-func listen(t *testing.T) net.Listener {
+func request(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+	return rec
+}
+
+func TestBeforeServingTheServiceIsAliveButNotReady(t *testing.T) {
+	h := newServer(time.Second, nil).Handler()
+	if got := request(t, h, "/healthz").Code; got != http.StatusOK {
+		t.Errorf("GET /healthz = %d, want 200", got)
+	}
+	if got := request(t, h, "/readyz").Code; got != http.StatusServiceUnavailable {
+		t.Errorf("GET /readyz = %d, want 503", got)
+	}
+}
+
+func TestPathsUnderAPIGoToTheAPIAndEveryOtherToTheWebApp(t *testing.T) {
+	for path, want := range map[string]string{"/api/v1/notes": "api", "/": "web", "/notes/42": "web", "/apiary": "web"} {
+		t.Run(path, func(t *testing.T) {
+			if got := request(t, newServer(time.Second, nil).Handler(), path).Header().Get("X-Route"); got != want {
+				t.Fatalf("GET %s went to %q, want %q", path, got, want)
+			}
+		})
+	}
+}
+
+func TestEveryAnswerCarriesTheSecurityHeaders(t *testing.T) {
+	if request(t, newServer(time.Second, nil).Handler(), "/").Header().Get("Content-Security-Policy") == "" {
+		t.Fatal("no Content-Security-Policy")
+	}
+}
+
+// serving starts s on a fresh listener and returns its URL, a cancel that stops it, and what Serve
+// returned once it has.
+func serving(t *testing.T, s *server.Server) (string, context.CancelFunc, <-chan error) {
 	t.Helper()
 	var lc net.ListenConfig
 	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ln
-}
-
-func TestProbesBeforeServing(t *testing.T) {
-	h := newServer(nil).Handler()
-	cases := []struct {
-		path string
-		want int
-	}{
-		{"/healthz", http.StatusOK},
-		{"/readyz", http.StatusServiceUnavailable},
-	}
-	for _, tc := range cases {
-		t.Run(tc.path, func(t *testing.T) {
-			rec := &recorder{header: http.Header{}}
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, tc.path, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			h.ServeHTTP(rec, req)
-			if rec.code != tc.want {
-				t.Fatalf("GET %s = %d, want %d", tc.path, rec.code, tc.want)
-			}
-		})
-	}
-}
-
-func TestRoutesAPIAndWebBehindSecurityHeaders(t *testing.T) {
-	h := newServer(nil).Handler()
-	for path, want := range map[string]string{"/api/v1/notes": "api", "/": "web", "/notes/42": "web", "/apiary": "web"} {
-		rec := &recorder{header: http.Header{}}
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		h.ServeHTTP(rec, req)
-		if got := rec.header.Get("X-Route"); got != want {
-			t.Errorf("GET %s went to %q, want %q", path, got, want)
-		}
-		if rec.header.Get("Content-Security-Policy") == "" {
-			t.Errorf("GET %s has no Content-Security-Policy", path)
-		}
-	}
-}
-
-func TestNotReadyWhileADependencyFails(t *testing.T) {
-	ln := listen(t)
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go func() { _ = newServer(errors.New("database down")).Serve(ctx, ln) }()
-
+	t.Cleanup(cancel)
+	done := make(chan error, 1)
+	go func() { done <- s.Serve(ctx, ln) }()
 	url := "http://" + ln.Addr().String()
 	waitFor(t, func() bool { return get(t, url+"/healthz") == http.StatusOK })
-	if got := get(t, url+"/readyz"); got != http.StatusServiceUnavailable {
-		t.Fatalf("GET /readyz with a failing dependency = %d, want 503", got)
-	}
+	return url, cancel, done
 }
 
-func TestServeIsReadyThenDrainsOnCancel(t *testing.T) {
-	ln := listen(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan error, 1)
-	go func() { done <- newServer(nil).Serve(ctx, ln) }()
-
-	url := "http://" + ln.Addr().String()
-	waitFor(t, func() bool { return get(t, url+"/readyz") == http.StatusOK })
-	if got := get(t, url+"/healthz"); got != http.StatusOK {
-		t.Fatalf("GET /healthz = %d, want 200", got)
-	}
-
-	cancel()
+func stopped(t *testing.T, done <-chan error) error {
+	t.Helper()
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("Serve returned %v, want nil", err)
-		}
+		return err
 	case <-time.After(15 * time.Second):
 		t.Fatal("Serve did not return after cancel")
+		return nil
 	}
 }
 
-func TestServeReturnsListenerError(t *testing.T) {
-	ln := listen(t)
+func TestAServingServiceIsReadyWhileItsDependenciesAnswer(t *testing.T) {
+	url, _, _ := serving(t, newServer(time.Second, nil))
+	if got := get(t, url+"/readyz"); got != http.StatusOK {
+		t.Fatalf("GET /readyz = %d, want 200", got)
+	}
+}
+
+func TestAServingServiceIsNotReadyWhileADependencyFails(t *testing.T) {
+	url, _, _ := serving(t, newServer(time.Second, errors.New("database down")))
+	if got := get(t, url+"/readyz"); got != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz = %d, want 503", got)
+	}
+}
+
+func TestCancellingStopsTheServiceCleanly(t *testing.T) {
+	_, cancel, done := serving(t, newServer(time.Second, nil))
+	cancel()
+	if err := stopped(t, done); err != nil {
+		t.Fatalf("Serve = %v, want nil", err)
+	}
+}
+
+func TestARequestStillOpenWhenTheGraceRunsOutIsAnError(t *testing.T) {
+	url, cancel, done := serving(t, newServer(50*time.Millisecond, nil))
+	var d net.Dialer
+	conn, err := d.DialContext(t.Context(), "tcp", url[len("http://"):])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	// Half a request makes the connection active, and the drain waits for it.
+	if _, err := io.WriteString(conn, "GET /healthz HTTP/1.1\r\nHost: x\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if err := stopped(t, done); err == nil {
+		t.Fatal("Serve = nil, want the drain's deadline")
+	}
+}
+
+func TestServingOnAClosedListenerFails(t *testing.T) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = ln.Close()
-	if err := newServer(nil).Serve(t.Context(), ln); err == nil {
+	if err := newServer(time.Second, nil).Serve(t.Context(), ln); err == nil {
 		t.Fatal("Serve on a closed listener returned nil")
 	}
 }
-
-// recorder is a minimal http.ResponseWriter, so the probe table needs no httptest.
-type recorder struct {
-	header http.Header
-	code   int
-}
-
-func (r *recorder) Header() http.Header         { return r.header }
-func (r *recorder) Write(b []byte) (int, error) { return len(b), nil }
-func (r *recorder) WriteHeader(code int)        { r.code = code }
 
 func get(t *testing.T, url string) int {
 	t.Helper()
