@@ -38,7 +38,7 @@ starts from [`template-go`](https://github.com/JorisJonkers-dev/template-go) ins
 | `scripts/coverage.sh` | The Go unit and integration coverage gates |
 | `mise.toml`, `Taskfile.yml` | The pinned toolchain, and every command: `task` lists them |
 | `Dockerfile` | Builds the web app, embeds it, ships a static binary on `distroless/static:nonroot` |
-| `.github/workflows/ci.yml` | One parallel job per `task check` task, one for `task e2e`, one for `docker build`, the quarantine check, and the mutation report on pull requests; `Pipeline Complete`, the one required check, passes when all but the report do |
+| `.github/workflows/ci.yml` | One parallel job per `task check` task; the e2e suite as one build of the binary, then `task e2e:ci` per device and shard in the Playwright image with a Postgres service, merged into one HTML report; one job for `docker build`, the quarantine check, and the mutation report on pull requests; `Pipeline Complete`, the one required check, passes when all but the two reports do |
 | `.github/workflows/release.yml`, `release-please-config.json` | release-please, as in the rest of the estate |
 | `deploy/template-go-vue.project.yml` | A [deploy-kit](https://github.com/JorisJonkers-dev/deploy-kit) Project Intent: one Process, an authenticated host, a Postgres edge |
 
