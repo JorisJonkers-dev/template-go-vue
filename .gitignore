@@ -79,6 +79,8 @@ web/dist/*
 web/coverage/
 web/playwright-report/
 web/test-results/
+web/blob-report/
+all-blob-reports/
 # Stryker, which the mutation report runs on a pull request.
 web/.stryker-tmp/
 web/reports/
