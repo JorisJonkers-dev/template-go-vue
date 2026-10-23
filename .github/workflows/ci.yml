@@ -59,12 +59,14 @@ jobs:
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "no @playwright/test version in pnpm-lock.yaml" >&2; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # Only what the build needs.
       - uses: jdx/mise-action@v5
         with:
           cache: true
+          install_args: go node pnpm task
 
       - name: Build the binary
-        run: mise exec -- task build
+        run: task build
 
       - uses: actions/upload-artifact@v7
         with:
