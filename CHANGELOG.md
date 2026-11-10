@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/JorisJonkers-dev/template-go-vue/compare/v0.1.0...v0.1.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies ([#16](https://github.com/JorisJonkers-dev/template-go-vue/issues/16)) ([9e683b0](https://github.com/JorisJonkers-dev/template-go-vue/commit/9e683b06399564aedaf32ca253646d55609d557d))
+
 ## 0.1.0 (2026-10-21)
 
 
