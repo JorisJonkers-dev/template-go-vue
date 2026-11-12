@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/JorisJonkers-dev/template-go-vue/compare/v0.1.1...v0.1.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update minor and patch dependencies ([#27](https://github.com/JorisJonkers-dev/template-go-vue/issues/27)) ([4b6271d](https://github.com/JorisJonkers-dev/template-go-vue/commit/4b6271dc04d2fef371c2573c852a22a4987ebedc))
+* **hygiene:** never cancel a run of the required hygiene checks ([#31](https://github.com/JorisJonkers-dev/template-go-vue/issues/31)) ([fbca59f](https://github.com/JorisJonkers-dev/template-go-vue/commit/fbca59ff2183f74c1f9b8c8481b4d259d12b92a6))
+
 ## [0.1.1](https://github.com/JorisJonkers-dev/template-go-vue/compare/v0.1.0...v0.1.1) (2026-11-10)
 
 
