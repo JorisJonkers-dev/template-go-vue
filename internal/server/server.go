@@ -91,8 +91,8 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	if err := srv.Shutdown(drain); err != nil {
 		return err
 	}
-	<-errs // http.ErrServerClosed, once Shutdown has returned
-	s.logger.Info("stopped")
+	// Serve returns http.ErrServerClosed once Shutdown has returned; it is the expected end, so it is logged, not returned.
+	s.logger.Info("stopped", "serve", <-errs)
 	return nil
 }
 
